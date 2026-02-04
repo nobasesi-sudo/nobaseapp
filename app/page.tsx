@@ -1,101 +1,176 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import ProductCard from '@/components/ProductCard';
+import Cart from '@/components/Cart';
+import { Product, CartItem } from '@/types';
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function HomePage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<Map<string, CartItem>>(new Map());
+  const [customerName, setCustomerName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [orderComplete, setOrderComplete] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      // Filter only active products with stock
+      setProducts(data.filter((p: Product) => p.is_active && p.stock > 0));
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuantityChange = (productId: string, quantity: number) => {
+    const newCart = new Map(cart);
+    const product = products.find((p) => p.id === productId);
+
+    if (!product) return;
+
+    if (quantity === 0) {
+      newCart.delete(productId);
+    } else {
+      newCart.set(productId, { product, quantity });
+    }
+
+    setCart(newCart);
+  };
+
+  const handleSubmit = async () => {
+    if (!customerName.trim() || cart.size === 0) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const items = Array.from(cart.values());
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customerName.trim(),
+          items,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('注文の送信に失敗しました');
+      }
+
+      const order = await res.json();
+      setOrderComplete(order.id);
+      setCart(new Map());
+      setCustomerName('');
+      fetchProducts(); // Refresh products to update stock
+    } catch (error) {
+      console.error('Failed to submit order:', error);
+      alert('注文の送信に失敗しました。もう一度お試しください。');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const cartItems = Array.from(cart.values());
+
+  if (orderComplete) {
+    return (
+      <main className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <div className="text-6xl mb-4">✅</div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">
+            ご注文ありがとうございます！
+          </h1>
+          <p className="text-gray-600 mb-6">
+            注文ID: {orderComplete}
+          </p>
+          <div className="flex flex-col gap-4">
+            <Link
+              href={`/orders/${orderComplete}`}
+              className="inline-block py-3 px-6 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors"
+            >
+              注文詳細を見る
+            </Link>
+            <button
+              onClick={() => setOrderComplete(null)}
+              className="py-3 px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors"
+            >
+              続けて買い物をする
+            </button>
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        <header className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 flex items-center justify-center gap-2">
+            <span>🥬</span> 余剰野菜マーケット
+          </h1>
+          <p className="text-gray-600 mt-2">
+            農家直送の新鮮野菜をお得にお届けします
+          </p>
+        </header>
+
+        <div className="lg:grid lg:grid-cols-3 lg:gap-8">
+          {/* Product List */}
+          <div className="lg:col-span-2">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">読み込み中...</p>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-8 bg-white rounded-lg shadow-md">
+                <p className="text-gray-500">現在販売中の商品はありません</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 lg:mb-0">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    cartItem={cart.get(product.id)}
+                    onQuantityChange={handleQuantityChange}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Cart */}
+          <div className="lg:col-span-1">
+            <div className="lg:sticky lg:top-4">
+              <Cart
+                items={cartItems}
+                customerName={customerName}
+                onCustomerNameChange={setCustomerName}
+                onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
+              />
+
+              <div className="mt-4 text-center">
+                <Link
+                  href="/orders"
+                  className="text-green-600 hover:text-green-700 underline"
+                >
+                  過去の注文履歴を見る
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
