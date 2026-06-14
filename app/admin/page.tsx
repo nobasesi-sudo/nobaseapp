@@ -81,7 +81,7 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex justify-between items-center mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
             <span>⚙️</span> 管理画面
           </h1>
@@ -92,6 +92,22 @@ export default function AdminPage() {
             + 商品を追加
           </Link>
         </header>
+
+        {/* Quick links */}
+        <div className="flex gap-3 mb-8 flex-wrap">
+          <Link
+            href="/admin/lunch-lookup"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            給食受注 かんたん検索
+          </Link>
+          <Link
+            href="/admin/orders"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            注文管理
+          </Link>
+        </div>
 
         {isLoading ? (
           <div className="text-center py-8">
