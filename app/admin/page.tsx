@@ -10,6 +10,8 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stockUpdates, setStockUpdates] = useState<Record<string, string>>({});
   const [updatingStock, setUpdatingStock] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -78,6 +80,59 @@ export default function AdminPage() {
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const activeProducts = products.filter((p) => p.is_active);
+  const allActiveSelected =
+    activeProducts.length > 0 && activeProducts.every((p) => selectedIds.has(p.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allActiveSelected ? new Set() : new Set(activeProducts.map((p) => p.id)));
+  };
+
+  // 選択した商品を一括でリストから外す(非表示にする)。
+  // 先に画面へ反映し(楽観的更新)、リクエストは並列に送る。失敗したものだけ元に戻す。
+  const handleBulkHide = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`選択した${ids.length}件をリストから外します。よろしいですか?`)) return;
+
+    setIsBulkUpdating(true);
+    setProducts((prev) =>
+      prev.map((p) => (selectedIds.has(p.id) ? { ...p, is_active: false } : p))
+    );
+    setSelectedIds(new Set());
+
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/products/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: false }),
+        }).then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        })
+      )
+    );
+
+    const failedIds = ids.filter((_, i) => results[i].status === 'rejected');
+    if (failedIds.length > 0) {
+      setProducts((prev) =>
+        prev.map((p) => (failedIds.includes(p.id) ? { ...p, is_active: true } : p))
+      );
+      setSelectedIds(new Set(failedIds));
+      alert(`${failedIds.length}件の処理に失敗しました。もう一度お試しください。`);
+    }
+    setIsBulkUpdating(false);
+  };
+
   return (
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -109,6 +164,27 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* 一括操作バー */}
+            <div className="sticky top-0 z-10 bg-white rounded-lg shadow-md p-3 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allActiveSelected}
+                  onChange={toggleSelectAll}
+                  disabled={activeProducts.length === 0}
+                  className="w-4 h-4"
+                />
+                表示中をすべて選択
+              </label>
+              <span className="text-sm text-gray-500">{selectedIds.size}件選択中</span>
+              <button
+                onClick={handleBulkHide}
+                disabled={selectedIds.size === 0 || isBulkUpdating}
+                className="ml-auto px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 text-white text-sm font-bold rounded transition-colors"
+              >
+                {isBulkUpdating ? '処理中...' : '選択したものをリストから外す'}
+              </button>
+            </div>
             {products.map((product) => (
               <div
                 key={product.id}
@@ -117,6 +193,17 @@ export default function AdminPage() {
                 }`}
               >
                 <div className="flex gap-4">
+                  {/* Select */}
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`${product.name}を選択`}
+                      checked={selectedIds.has(product.id)}
+                      onChange={() => toggleSelect(product.id)}
+                      disabled={!product.is_active || isBulkUpdating}
+                      className="w-5 h-5 disabled:opacity-30"
+                    />
+                  </div>
                   {/* Image */}
                   <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden relative">
                     {product.image_url ? (
