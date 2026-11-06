@@ -21,6 +21,8 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/products');
       const data = await res.json();
+      // 品名の五十音順(日本語ロケール)で並べる
+      data.sort((a: Product, b: Product) => a.name.localeCompare(b.name, 'ja'));
       setProducts(data);
       // Initialize stock inputs
       const stockMap: Record<string, string> = {};
